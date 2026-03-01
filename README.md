@@ -1,13 +1,16 @@
 # Mail Reader MCP Server (STDIO)
 
-MCP server built with **Spring Boot 3.5** and **Spring AI MCP** that reads and replies to email. Uses **STDIO** transport so Cursor (or any MCP client) can run it as a subprocess.
+MCP server built with **Spring Boot 3.5** and **Spring AI MCP** that reads, sends, and replies to email. Uses **STDIO** transport so Cursor (or any MCP client) can run it as a subprocess.
 
 ## Features
 
-- **list_recent_mails** – List the most recent emails (with optional limit).
-- **list_mails_by_subject** – List emails whose subject contains given text.
-- **read_mail** – Read full body of an email by 1-based index.
-- **reply_to_mail** – Send a reply to an address with subject and body.
+| Tool | Description |
+|------|-------------|
+| **listRecentMails** | List the most recent emails in the inbox (with optional limit). Returns index, subject, from, and date. |
+| **listMailsBySubject** | Search emails whose subject contains given text. Returns matching emails with index, subject, from, and date. |
+| **readMail** | Read the full body of an email by its 1-based index. |
+| **sendMail** | Compose and send a new email with To, optional CC, subject, and plain-text body. |
+| **replyToMail** | Send a reply to an address with subject and body. |
 
 ## Prerequisites
 
@@ -59,7 +62,7 @@ Set mail credentials via env or `application.yml`:
 ## Configuration
 
 - **STDIO**: `spring.ai.mcp.server.stdio=true` in `application.yml` or `-D`.
-- **Logging**: Console pattern is cleared and root level set to WARN so STDIO JSON-RPC is not corrupted.
+- **Logging**: All logs go to `logs/mail-reader-mcp.log` via `logback-spring.xml` (no console output) so STDIO JSON-RPC is not corrupted.
 - **Mail**: Uses `spring.mail.*` for SMTP (sending) and the same host/user/password for IMAP (reading) via Jakarta Mail / Angus Mail.
 
 ## Libraries (2025–2026)
@@ -71,4 +74,4 @@ Set mail credentials via env or `application.yml`:
 
 ## Tool annotations
 
-Uses Spring AI `@Tool` / `@ToolParam` from `org.springframework.ai.tool.annotation`. The MCP server auto-configuration discovers `@Tool`-annotated methods on `@Component` beans and exposes them as MCP tools over STDIO.
+Uses Spring AI `@Tool` / `@ToolParam` from `org.springframework.ai.tool.annotation`. Tools are registered via a `ToolCallbackProvider` bean using `MethodToolCallbackProvider`, and the MCP server auto-configuration converts them into MCP tool specifications exposed over STDIO.
