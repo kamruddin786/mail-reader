@@ -1,0 +1,29 @@
+spring:
+  ai:
+    mcp:
+      server:
+        name: mail-reader-mcp
+        version: 1.0.0
+        type: SYNC
+        stdio: true
+  main:
+    banner-mode: off
+  mail:
+    host: ${MAIL_SMTP_HOST:smtp.gmail.com}
+    port: ${MAIL_SMTP_PORT:587}
+    username: ${MAIL_USER:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+mail:
+  reader:
+    imap-host: ${MAIL_IMAP_HOST:imap.gmail.com}
+    imap-port: ${MAIL_IMAP_PORT:993}
+
+# Logging handled by logback-spring.xml (file only, no console)
+# This prevents stdout output from corrupting the STDIO JSON-RPC protocol
