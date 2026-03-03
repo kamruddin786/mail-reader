@@ -3,6 +3,7 @@ package com.mailreader.mail;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.internet.MimeUtility;
 import jakarta.mail.search.SearchTerm;
 import jakarta.mail.search.SubjectTerm;
@@ -58,7 +59,7 @@ public class MailService {
 
             Message[] messages = searchTerm != null
                     ? inbox.search(searchTerm)
-                    : inbox.getMessages();
+                    : inbox.getMessages(1, maxCount);
 
             sortNewestFirst(messages);
 
@@ -76,15 +77,17 @@ public class MailService {
             Folder inbox = store.getFolder(INBOX);
             inbox.open(Folder.READ_ONLY);
 
-            Message[] messages = inbox.getMessages();
-            sortNewestFirst(messages);
+            // Message[] messages = inbox.getMessages();
+            // sortNewestFirst(messages);
 
-            if (oneBasedIndex < 1 || oneBasedIndex > messages.length) {
-                throw new IllegalArgumentException(
-                        "Invalid message index: " + oneBasedIndex + " (valid: 1-" + messages.length + ")");
-            }
+            // if (oneBasedIndex < 1 || oneBasedIndex > messages.length) {
+            // throw new IllegalArgumentException(
+            // "Invalid message index: " + oneBasedIndex + " (valid: 1-" + messages.length +
+            // ")");
+            // }
 
-            Message msg = messages[oneBasedIndex - 1];
+            // Message msg = messages[oneBasedIndex - 1];
+            Message msg = inbox.getMessage(oneBasedIndex);
             String from = addressesToString(msg.getFrom());
             String subject = msg.getSubject() != null ? msg.getSubject() : "(no subject)";
             String body = getTextContent(msg);
@@ -130,7 +133,8 @@ public class MailService {
             try {
                 Date da = a.getSentDate();
                 Date db = b.getSentDate();
-                if (da != null && db != null) return db.compareTo(da);
+                if (da != null && db != null)
+                    return db.compareTo(da);
             } catch (MessagingException ignored) {
             }
             return 0;
@@ -139,7 +143,7 @@ public class MailService {
 
     private static MailSummary toSummary(Message msg, int index) throws MessagingException {
         MailSummary s = new MailSummary();
-        s.setIndex(index);
+        s.setIndex(msg.getMessageNumber());
         try {
             s.setSubject(MimeUtility.decodeText(msg.getSubject() != null ? msg.getSubject() : "(no subject)"));
         } catch (Exception e) {
@@ -152,7 +156,8 @@ public class MailService {
     }
 
     private static String addressesToString(Address[] addresses) {
-        if (addresses == null || addresses.length == 0) return "";
+        if (addresses == null || addresses.length == 0)
+            return "";
         return Arrays.stream(addresses)
                 .map(a -> a instanceof InternetAddress ia ? ia.getAddress() : a.toString())
                 .reduce((x, y) -> x + ", " + y)
@@ -161,28 +166,39 @@ public class MailService {
 
     private static String getTextContent(Message message) throws MessagingException {
         try {
-            Object content = message.getContent();
-            if (content instanceof String s) return s;
-            if (content instanceof Multipart mp) {
-                for (int i = 0; i < mp.getCount(); i++) {
-                    BodyPart part = mp.getBodyPart(i);
-                    String ct = part.getContentType();
-                    if (ct != null && ct.toLowerCase().contains("text/plain")) {
-                        return part.getContent().toString();
-                    }
-                }
-                for (int i = 0; i < mp.getCount(); i++) {
-                    BodyPart part = mp.getBodyPart(i);
-                    String ct = part.getContentType();
-                    if (ct != null && ct.toLowerCase().contains("text/")) {
-                        return part.getContent().toString();
-                    }
-                }
+            if (message.isMimeType("text/plain")) {
+                return message.getContent().toString();
+            } else if (message.isMimeType("text/html")) {
+                return (String) message.getContent();
+            } else if (message.isMimeType("multipart/*")) {
+                MimeMultipart mimeMultipart = (MimeMultipart) message.getContent();
+                return getTextFromMimeMultipart(mimeMultipart);
             }
-            return content != null ? content.toString() : "";
+            return "";
         } catch (IOException e) {
             throw new MessagingException("Failed to read message content", e);
         }
+    }
+
+    private static String getTextFromMimeMultipart(MimeMultipart mimeMultipart) throws MessagingException, IOException {
+        StringBuilder result = new StringBuilder();
+        int count = mimeMultipart.getCount();
+
+        for (int i = 0; i < count; i++) {
+            BodyPart bodyPart = mimeMultipart.getBodyPart(i);
+
+            if (bodyPart.isMimeType("text/plain")) {
+                result.append(bodyPart.getContent());
+                break; // Often plain text is enough
+            } else if (bodyPart.isMimeType("text/html")) {
+                String html = (String) bodyPart.getContent();
+                result.append(html);
+            } else if (bodyPart.getContent() instanceof MimeMultipart) {
+                // Recursive call for nested multiparts
+                result.append(getTextFromMimeMultipart((MimeMultipart) bodyPart.getContent()));
+            }
+        }
+        return result.toString();
     }
 
     public static class MailSummary {
@@ -192,15 +208,44 @@ public class MailService {
         private String sentDate;
         private String receivedDate;
 
-        public int getIndex() { return index; }
-        public void setIndex(int index) { this.index = index; }
-        public String getSubject() { return subject; }
-        public void setSubject(String subject) { this.subject = subject; }
-        public String getFrom() { return from; }
-        public void setFrom(String from) { this.from = from; }
-        public String getSentDate() { return sentDate; }
-        public void setSentDate(String sentDate) { this.sentDate = sentDate; }
-        public String getReceivedDate() { return receivedDate; }
-        public void setReceivedDate(String receivedDate) { this.receivedDate = receivedDate; }
+        public int getIndex() {
+            return index;
+        }
+
+        public void setIndex(int index) {
+            this.index = index;
+        }
+
+        public String getSubject() {
+            return subject;
+        }
+
+        public void setSubject(String subject) {
+            this.subject = subject;
+        }
+
+        public String getFrom() {
+            return from;
+        }
+
+        public void setFrom(String from) {
+            this.from = from;
+        }
+
+        public String getSentDate() {
+            return sentDate;
+        }
+
+        public void setSentDate(String sentDate) {
+            this.sentDate = sentDate;
+        }
+
+        public String getReceivedDate() {
+            return receivedDate;
+        }
+
+        public void setReceivedDate(String receivedDate) {
+            this.receivedDate = receivedDate;
+        }
     }
 }
