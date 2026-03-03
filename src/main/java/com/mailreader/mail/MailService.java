@@ -56,10 +56,13 @@ public class MailService {
         try (Store store = openStore()) {
             Folder inbox = store.getFolder(INBOX);
             inbox.open(Folder.READ_ONLY);
+            int totalMessages = inbox.getMessageCount();
+            int start = Math.max(1, totalMessages - maxCount + 1);
+            int end = totalMessages;
 
             Message[] messages = searchTerm != null
                     ? inbox.search(searchTerm)
-                    : inbox.getMessages(1, maxCount);
+                    : inbox.getMessages(start, end);
 
             sortNewestFirst(messages);
 
@@ -77,16 +80,6 @@ public class MailService {
             Folder inbox = store.getFolder(INBOX);
             inbox.open(Folder.READ_ONLY);
 
-            // Message[] messages = inbox.getMessages();
-            // sortNewestFirst(messages);
-
-            // if (oneBasedIndex < 1 || oneBasedIndex > messages.length) {
-            // throw new IllegalArgumentException(
-            // "Invalid message index: " + oneBasedIndex + " (valid: 1-" + messages.length +
-            // ")");
-            // }
-
-            // Message msg = messages[oneBasedIndex - 1];
             Message msg = inbox.getMessage(oneBasedIndex);
             String from = addressesToString(msg.getFrom());
             String subject = msg.getSubject() != null ? msg.getSubject() : "(no subject)";
